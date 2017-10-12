@@ -16,24 +16,23 @@ class QATrainer(object):
         self.acc_calculator = BinaryAccuracyCalculator()
 
         # for logging, would be replaced after connecting to tensorboard
-        self.verbose_round = 5000
+        self.verbose_round = 2000
         self.save_round = 50000
 
-    def train(self, epochs, batch_size=20, negative_sample_size=10):
+    def train(self, epochs, batch_size=30, negative_sample_size=30):
         for i in range(epochs):
-            print("Epoch", i+1)
             for batch_id, (inputs, targets) in enumerate(self.data_transformer.negative_batch(batch_size, negative_sample_size)):
                 query_var, answer_var = inputs
-                batch_loss, accuracy = self._train_batch(query_var, answer_var, targets)
+                logits, batch_loss = self._train_batch(query_var, answer_var, targets)
 
                 if (batch_id + 1) % self.verbose_round == 0:
-                    print("Epoch", i + 1, "batch", batch_id + 1, "Batch Loss", batch_loss.data[0], "Accuracy", accuracy)
-                    # print("Positive accuracy", pos_acc)
-                    # print("Negative accuracy", neg_acc)
+                    acc, pos_acc, neg_acc = self.acc_calculator.get_accuracy_torch(logits, targets, 0.5)
+                    print("Epoch %d batch %d: Batch Loss:%.5f\tAcc:%.5f\tPos:%.5f\tNeg:%.5f"
+                          % (i + 1, batch_id + 1, batch_loss.data[0], acc, pos_acc, neg_acc))
 
                 if (batch_id + 1) % self.save_round == 0:
                     print(batch_id, "Saving model")
-                    self.model_manager.save_model(self.model)
+                    self.model_manager.save_model(self.model, 'checkpoint/CNNQA.pt')
 
     def _train_batch(self, query_var, answer_var, target_var):
         # back-prop & optimize
@@ -42,6 +41,8 @@ class QATrainer(object):
         batch_loss = self.criterion(logits, target_var)
         batch_loss.backward()
         self.optimizer.step()
-        acc, pos_acc, neg_acc = self.acc_calculator.get_accuracy_torch(logits, target_var, 0.5)
 
-        return batch_loss, acc, pos_acc, neg_acc
+        return logits, batch_loss
+
+    def load_pretrained_model(self, model_path):
+        self.model_manager.load_model(self.model, model_path)

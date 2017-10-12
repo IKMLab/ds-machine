@@ -43,7 +43,7 @@ class ConvolutionDiscriminator(nn.Module):
                 flatten_size = len(kernel_sizes) * kernel_num
 
         self.fc = nn.Linear(flatten_size, hidden_size)  # maybe this layer should be removed before adding topk pooling
-        self.out = nn.Linear(flatten_size, out_size)  # binary classification
+        self.out = nn.Linear(hidden_size, out_size)  # binary classification
         self.log_softmax = nn.LogSoftmax()
 
     def forward(self, query, answer):
