@@ -21,16 +21,14 @@ class ConvolutionEncoder(nn.Module):
             self.batch_norm = nn.BatchNorm1d(out_size)
 
     def forward(self, inputs):
-
         """
         :param inputs: a index sequence with shape : (N, T)
         :return: 
         """
+        inputs_embedded = self.embedding(inputs)  # (N, T, D)
+        inputs_embedded = inputs_embedded.unsqueeze(1)  # (N, 1, T, D)
 
-        inputs_embedd = self.embedding(inputs)  # (N, T, D)
-        inputs_embedd = inputs_embedd.unsqueeze(1)  # (N, 1, T, D)
-
-        inputs_conv = [F.relu(conv(inputs_embedd)).squeeze(3) for conv in self.convs]  # [(N, K_num, W), ...]
+        inputs_conv = [F.relu(conv(inputs_embedded)).squeeze(3) for conv in self.convs]  # [(N, K_num, W), ...]
         inputs_maxed = [F.max_pool1d(i, i.size(2)).squeeze(2) for i in inputs_conv]  # [(N, K_num), ...]
         out = torch.cat(inputs_maxed, 1)
 

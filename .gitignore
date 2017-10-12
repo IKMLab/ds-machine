@@ -3,6 +3,7 @@
 *.data
 *.checkpoint
 *.txt
+*.pt
 *.model
 __pycache__/
 

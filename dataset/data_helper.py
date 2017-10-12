@@ -1,5 +1,6 @@
 import torch
 import random
+import numpy as np
 
 from torch.autograd import Variable
 
@@ -31,18 +32,13 @@ class DataTransformer(object):
         for answer in self.vocab.answer_list:
             self.answer_sequences.append(self.vocab.sequence_to_indices(answer, add_eos=False))
 
-
     def pad_sequence(self, sequence, max_length):
         sequence += [self.PAD_ID for i in range(max_length - len(sequence))]
         return sequence
 
     def batches(self, batch_size):
-        # a batch is composed of 1 pos answer and #nagative_size neg answers
-        # TODO Solve the unbalanced problem
-
         qa_pairs = list(zip(self.query_sequences, self.answer_sequences))
         random.shuffle(qa_pairs)
-        query_sequences, answer_sequences = zip(*qa_pairs)
 
         pos_mini_batches = [
             (self.query_sequences[k: k + batch_size], self.answer_sequences[k: k + batch_size])
@@ -58,6 +54,56 @@ class DataTransformer(object):
         for i in range(len(pos_mini_batches)):
 
             query_pos_batch, answer_pos_batch = pos_mini_batches[i]
+            query_neg_batch, answer_neg_batch = neg_mini_batches[i]
+            pos_targets = [1] * len(query_pos_batch)
+            neg_targets = [0] * len(query_neg_batch)
+
+            query_batch = query_pos_batch + query_neg_batch
+            answer_batch = answer_pos_batch + answer_neg_batch
+            targets = pos_targets + neg_targets
+
+            query_batch_max_len = max([len(query) for query in query_batch])
+            answer_batch_max_len = max([len(answer) for answer in answer_batch])
+
+            query_padded = [self.pad_sequence(query, query_batch_max_len) for query in query_batch]
+            answer_padded = [self.pad_sequence(answer, answer_batch_max_len) for answer in answer_batch]
+
+            query_var = Variable(torch.LongTensor(query_padded))  # (B, T)
+            answer_var = Variable(torch.LongTensor(answer_padded))  # (B, T)
+            targets_var = Variable(torch.LongTensor(targets))
+
+            if self.use_cuda:
+                query_var = query_var.cuda()
+                answer_var = answer_var.cuda()
+                targets_var = targets_var.cuda()
+
+            yield (query_var, answer_var), targets_var
+
+    def negative_batch(self, batch_size, negative_size):
+        # oversample the pos answer, undersample the neg answer
+        # a batch is composed of #batch_size * negative_size pos answer and #batch_size * #nagative_size neg answers
+
+        qa_pairs = list(zip(self.query_sequences, self.answer_sequences))
+        random.shuffle(qa_pairs)
+        for i in range(0, len(self.query_sequences), batch_size):
+            pos_mini_batches = []
+
+        pos_mini_batches = [
+            (self.query_sequences[k: k + batch_size], self.answer_sequences[k: k + batch_size])
+            for k in range(0, len(self.answer_sequences), batch_size)
+        ]
+
+        neg_mini_batches = [
+            (self.query_sequences[k: k + batch_size] * negative_size,
+             random.sample(self.answer_sequences, len(self.query_sequences[k: k + batch_size]) * negative_size))
+            for k in range(0, len(self.answer_sequences), batch_size)
+        ]
+
+        for i in range(len(pos_mini_batches)):
+            query_pos_batch, answer_pos_batch = pos_mini_batches[i]
+            query_pos_batch = query_pos_batch * negative_size
+            answer_pos_batch = answer_pos_batch * negative_size
+
             query_neg_batch, answer_neg_batch = neg_mini_batches[i]
             pos_targets = [1] * len(query_pos_batch)
             neg_targets = [0] * len(query_neg_batch)

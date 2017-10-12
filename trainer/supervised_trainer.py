@@ -1,9 +1,8 @@
 import torch
 import torch.nn as nn
-import numpy as np
 
-from dataset.data_helper import DataTransformer
 from trainer.utils.save import ModelManager
+from trainer.utils.accuracy import BinaryAccuracyCalculator
 
 
 class QATrainer(object):
@@ -14,22 +13,25 @@ class QATrainer(object):
         self.model_manager = ModelManager(path=checkpoint_path)
         self.criterion = nn.NLLLoss(size_average=True)
         self.optimizer = torch.optim.Adam(self.model.parameters())
+        self.acc_calculator = BinaryAccuracyCalculator()
 
         # for logging, would be replaced after connecting to tensorboard
-        self.verbose_round = 500
-        self.save_round = 5000
+        self.verbose_round = 5000
+        self.save_round = 50000
 
-    def train(self, epochs, batch_size=256):
+    def train(self, epochs, batch_size=20, negative_sample_size=10):
         for i in range(epochs):
             print("Epoch", i+1)
-            for batch_id, (inputs, targets) in enumerate(self.data_transformer.batches(batch_size)):
+            for batch_id, (inputs, targets) in enumerate(self.data_transformer.negative_batch(batch_size, negative_sample_size)):
                 query_var, answer_var = inputs
                 batch_loss, accuracy = self._train_batch(query_var, answer_var, targets)
 
-                if batch_id % self.verbose_round == 0:
-                    print(batch_id, "Batch Loss", batch_loss.data)
-                    print(batch_id, "Accuracy", accuracy)
-                if batch_id % self.save_round == 0:
+                if (batch_id + 1) % self.verbose_round == 0:
+                    print("Epoch", i + 1, "batch", batch_id + 1, "Batch Loss", batch_loss.data[0], "Accuracy", accuracy)
+                    # print("Positive accuracy", pos_acc)
+                    # print("Negative accuracy", neg_acc)
+
+                if (batch_id + 1) % self.save_round == 0:
                     print(batch_id, "Saving model")
                     self.model_manager.save_model(self.model)
 
@@ -39,12 +41,7 @@ class QATrainer(object):
         logits = self.model.forward(query_var, answer_var)
         batch_loss = self.criterion(logits, target_var)
         batch_loss.backward()
-
-        # calcluate accuracy
-        predict_classes = logits.max(dim=1)[1]
-        diff = predict_classes - target_var
-        false_predection = torch.abs(diff).sum()
-        accuracy = 1 - (false_predection.cpu().data.numpy()[0] / diff.size(0))
         self.optimizer.step()
+        acc, pos_acc, neg_acc = self.acc_calculator.get_accuracy_torch(logits, target_var, 0.5)
 
-        return batch_loss, accuracy
+        return batch_loss, acc, pos_acc, neg_acc

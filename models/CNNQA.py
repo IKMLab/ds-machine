@@ -29,23 +29,22 @@ class ConvolutionDiscriminator(nn.Module):
         super(ConvolutionDiscriminator, self).__init__()
         self.query_encoder = ConvolutionEncoder(vocab_size, embedding_size, kernel_sizes, kernel_num)
         self.answer_encoder = ConvolutionEncoder(vocab_size, embedding_size, kernel_sizes, kernel_num)
+        self.conv_over_qa = conv_over_qa
+        self.residual = residual
 
-        if conv_over_qa:
-            self.conv_over_qa = True
+        if self.conv_over_qa:
             out_channels = 32
             flatten_size = len(kernel_sizes) * kernel_num * out_channels
             self.qa_convolution = nn.Conv2d(1, out_channels, (2, 3), padding=(0, 1))  # 3 for same shape, 2 for (q,a)
         else:
-            self.conv_over_qa = False
-            self.residual = residual
-            if residual:
+            if self.residual:
                 flatten_size = len(kernel_sizes) * kernel_num * 3
             else:
                 flatten_size = len(kernel_sizes) * kernel_num
 
         self.fc = nn.Linear(flatten_size, hidden_size)  # maybe this layer should be removed before adding topk pooling
         self.out = nn.Linear(flatten_size, out_size)  # binary classification
-        self.softmax = nn.LogSoftmax()
+        self.log_softmax = nn.LogSoftmax()
 
     def forward(self, query, answer):
         # D = len(kernel_sizes) * kernel_num
@@ -60,7 +59,13 @@ class ConvolutionDiscriminator(nn.Module):
             qa_conv = self.qa_convolution(qa_stacks)  # (B, 32, 1, D)
             qa_features = qa_conv.squeeze(2).view(qa_conv.size(0), -1)  # restore all features
         else:
-            qa_correlation = q_vec * a_vec # (B, D)
+            try:
+                qa_correlation = q_vec * a_vec  # (B, D)
+            except:
+                print("Query size", query.size())
+                print("Answer size", answer.size())
+                print("q_vec size", q_vec.size())
+                print("a_vec size", a_vec.size())
 
             if self.residual:
                 qa_features = torch.cat((q_vec, a_vec, qa_correlation), dim=1)  # (B, 3 * D)
@@ -68,7 +73,7 @@ class ConvolutionDiscriminator(nn.Module):
                 qa_features = qa_correlation
 
         h1 = self.fc(qa_features)
-        logits = self.softmax(self.out(h1))
+        logits = self.log_softmax(self.out(h1))
         return logits
 
 
