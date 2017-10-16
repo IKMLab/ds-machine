@@ -11,17 +11,20 @@ class QAEvaluator(object):
         self.model = model
         self.model_loader.load_model(self.model)  # restore the weights of model
 
-    def predict(self, sentence):
+    def predict(self, sentence, topk=1):
         all_prob = np.array([])
         for query_var, answer_var in self.data_transformer.evaluation_batch(sentence):
             logits = self.model.forward(query_var, answer_var)
             logits = logits.data.cpu().numpy()
             pos_prob = logits[:, 1]
+            print(pos_prob.shape)
             all_prob = np.concatenate((all_prob, pos_prob), axis=0)
-        index = np.argmax(all_prob)
-        print(self.data_transformer.vocab.answer_list[index])
+        indices = np.argpartition(all_prob, -topk)[-topk:]
+        print(all_prob.shape)
+        for index in indices:
+            print(self.data_transformer.vocab.answer_list[index])
 
-    def interactive_mode(self):
+    def interactive_mode(self, topk=1):
         while True:
             user_input = input("Say something...")
-            self.predict(user_input)
+            self.predict(user_input, topk)

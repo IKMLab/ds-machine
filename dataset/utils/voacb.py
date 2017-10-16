@@ -28,7 +28,7 @@ class Vocabulary(object):
         for word in words:
             if word not in self.word2idx:
                 self.word2idx[word] = self.num_words
-                self.idx2word[self.num_words] = words
+                self.idx2word[self.num_words] = word
                 self.num_words += 1
 
     def sequence_to_indices(self, sequence, add_eos=False, add_sos=False):
@@ -56,20 +56,15 @@ class Vocabulary(object):
         """
         sequence = ""
         for idx in indices:
-            char = self.idx2word[idx]
-            if char == "EOS":
+            word = self.idx2word[idx]
+            if word == "EOS":
                 break
             else:
-                sequence += char
+                sequence += word
         return sequence
 
     def split_sequence(self, sequence):
-        """Vary from languages and tasks. In our task, we simply return chars in given sentence
-        For example:
-            Input : alphabet
-            Return: [a, l, p, h, a, b, e, t]
-        """
-        return [char for char in sequence]
+        return [word for word in sequence]
 
     def __str__(self):
         str = "Vocab information:\n"
