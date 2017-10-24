@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from models.encoders.ConvEncoder import ConvolutionEncoder
+from DSMachine.models.encoders.ConvEncoder import ConvolutionEncoder
 
 
 class ConvolutionCosineSimilarity(nn.Module):

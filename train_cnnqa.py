@@ -1,6 +1,6 @@
-from dataset.data_helper import DataTransformer
-from models.CNNQA import ConvolutionDiscriminator
-from trainer.supervised_trainer import QATrainer
+from DSMachine.dataset import DataTransformer
+from DSMachine.models.CNNQA import ConvolutionDiscriminator
+from DSMachine.trainer.supervised_trainer import QATrainer
 
 
 def main():

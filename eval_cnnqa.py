@@ -1,6 +1,6 @@
-from dataset.data_helper import DataTransformer
-from models.CNNQA import ConvolutionDiscriminator
-from eval.evaluator import QAEvaluator
+from DSMachine.dataset import DataTransformer
+from DSMachine.evaluation.evaluator import QAEvaluator
+from DSMachine.models.CNNQA import ConvolutionDiscriminator
 
 
 def main():

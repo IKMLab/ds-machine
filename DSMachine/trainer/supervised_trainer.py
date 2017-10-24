@@ -1,9 +1,8 @@
 import torch
 import torch.nn as nn
-
-from trainer.utils.save import ModelManager
-from trainer.utils.accuracy import BinaryAccuracyCalculator
-from trainer.utils.tensorboard import Logger
+from DSMachine.trainer.utils.accuracy import BinaryAccuracyCalculator
+from DSMachine.trainer.utils.save import ModelManager
+from DSMachine.trainer.utils.tensorboard import Logger
 
 
 class QATrainer(object):

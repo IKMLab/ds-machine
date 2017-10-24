@@ -1,6 +1,8 @@
 .idea/*
+logs/
 *.csv
 *.data
+*.log
 *.checkpoint
 *.txt
 *.pt

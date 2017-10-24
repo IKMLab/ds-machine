@@ -1,6 +1,7 @@
-from dataset.data_helper import DataTransformer
-from models.CNNQA import ConvolutionCosineSimilarity
-from trainer.supervised_trainer import SimTrainer
+from DSMachine.dataset import DataTransformer
+from DSMachine.models.CNNQA import ConvolutionCosineSimilarity
+from DSMachine.trainer.supervised_trainer import SimTrainer
+
 
 def main():
     data_transformer = DataTransformer(path='dataset/Gossiping-QA-Dataset.txt', min_length=6)

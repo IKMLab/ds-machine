@@ -1,11 +1,10 @@
-import torch
 import random
-import numpy as np
 
+import torch
+from dataset.utils.voacb import Vocabulary
 from torch.autograd import Variable
 
-from dataset.utils.voacb import Vocabulary
-from dataset.utils.sample import QASampler
+from DSMachine.dataset.utils.sample import QASampler
 
 
 class DataTransformer(object):

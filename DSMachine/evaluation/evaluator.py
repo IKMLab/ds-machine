@@ -1,13 +1,14 @@
 import numpy as np
 
-from trainer.utils.save import ModelManager
-from dataset.data_helper import DataTransformer
+from DSMachine.dataset import data_helper
+from DSMachine.trainer.utils import save
+
 
 class QAEvaluator(object):
 
     def __init__(self, model, dataset_path='dataset/Gossiping-QA-Dataset.txt', checkpoint_path='checkpoint/CNNQA.pt'):
-        self.model_loader = ModelManager(checkpoint_path)
-        self.data_transformer = DataTransformer(dataset_path, use_cuda=True, min_length=5)
+        self.model_loader = save.ModelManager(checkpoint_path)
+        self.data_transformer = data_helper.DataTransformer(dataset_path, use_cuda=True, min_length=5)
         self.model = model
         self.model_loader.load_model(self.model)  # restore the weights of model
 
