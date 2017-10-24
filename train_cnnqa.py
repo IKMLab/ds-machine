@@ -1,4 +1,4 @@
-from DSMachine.dataset import DataTransformer
+from DSMachine.dataset.data_helper import DataTransformer
 from DSMachine.models.CNNQA import ConvolutionDiscriminator
 from DSMachine.trainer.supervised_trainer import QATrainer
 

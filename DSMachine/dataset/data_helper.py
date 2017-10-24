@@ -1,9 +1,9 @@
 import random
-
 import torch
-from dataset.utils.voacb import Vocabulary
+
 from torch.autograd import Variable
 
+from DSMachine.dataset.utils.voacb import Vocabulary
 from DSMachine.dataset.utils.sample import QASampler
 
 
