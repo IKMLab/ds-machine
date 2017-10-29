@@ -12,7 +12,7 @@ def main():
                                         hidden_size=256, output_size=4,
                                         kernel_sizes=(1,2,3), kernel_num=64)
     classifier = classifier.cuda()
-    trainer = GreedyHANTrainer(data_transformer ,classifier)
+    trainer = GreedyHANTrainer(data_transformer ,classifier, checkpoint_path='checkpoint/GreedyHanWith3MAX.pt')
     trainer.train(epochs=3000, batch_size=128, pretrained=False)
 
 if __name__ == '__main__':
