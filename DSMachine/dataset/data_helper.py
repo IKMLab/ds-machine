@@ -3,7 +3,7 @@ import torch
 
 from torch.autograd import Variable
 
-from DSMachine.dataset.utils.voacb import Vocabulary
+from DSMachine.dataset.utils.voacb import QAVocabulary
 from DSMachine.dataset.utils.sample import QASampler
 
 
@@ -15,8 +15,8 @@ class DataTransformer(object):
         self.use_cuda = use_cuda
 
         # Load and build the vocab
-        self.vocab = Vocabulary()
-        self.vocab.build_vocab(path, min_length)
+        self.vocab = QAVocabulary()
+        self.vocab.build_vocab_from_dataset(path, min_length)
         self.PAD_ID = self.vocab.word2idx["PAD"]
         self.SOS_ID = self.vocab.word2idx["SOS"]
         self.vocab_size = self.vocab.num_words

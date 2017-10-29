@@ -5,22 +5,13 @@ class Vocabulary(object):
         self.idx2word = {0: 'SOS', 1: 'EOS', 2: 'PAD', 3: 'UNK'}
         self.num_words = 4
         self.max_length = 0
-        self.query_list = []
-        self.answer_list = []
 
-    def build_vocab(self, data_path, min_length):
-        """Construct the relation between words and indices"""
-        with open(data_path, 'r', encoding='utf-8') as dataset:
-            for sentence in dataset:
-                query, answer = sentence.strip('\n').split('\t')
-
-                if len(query) > min_length and len(answer) > min_length:
-                    self.query_list.append(query)
-                    self.sentence_processing(query)
-                    self.answer_list.append(answer)
-                    self.sentence_processing(answer)
+    def build_vocab(self, sentences):
+        for sentence in sentences:
+            self.sentence_processing(sentence)
 
     def sentence_processing(self, sentence):
+        """Build the vocabulary based on input sentence"""
         if self.max_length < len(sentence):
             self.max_length = len(sentence)
 
@@ -66,8 +57,39 @@ class Vocabulary(object):
     def split_sequence(self, sequence):
         return [word for word in sequence]
 
+    def replace_with(self, vocab):
+        pass
+
     def __str__(self):
         str = "Vocab information:\n"
         for idx, char in self.idx2word.items():
             str += "Char: %s Index: %d\n" % (char, idx)
         return str
+
+    def __len__(self):
+        return len(self.word2idx)
+
+class QAVocabulary(Vocabulary):
+
+    """
+    Processing the data with format:
+    Q1\tA1
+    Q2\tA2
+    """
+
+    def __init__(self):
+        super(QAVocabulary, self).__init__()
+        self.query_list = []
+        self.answer_list = []
+
+    def build_vocab_from_dataset(self, data_path, min_length):
+        """Construct the relation between words and indices"""
+        with open(data_path, 'r', encoding='utf-8') as dataset:
+            for sentence in dataset:
+                query, answer = sentence.strip('\n').split('\t')
+
+                if len(query) > min_length and len(answer) > min_length:
+                    self.query_list.append(query)
+                    self.sentence_processing(query)
+                    self.answer_list.append(answer)
+                    self.sentence_processing(answer)
