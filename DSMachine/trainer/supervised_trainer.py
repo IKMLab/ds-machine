@@ -1,13 +1,38 @@
+import tqdm
 import torch
+import jieba
 import torch.nn as nn
 from DSMachine.trainer.utils.accuracy import BinaryAccuracyCalculator
 from DSMachine.trainer.utils.save import ModelManager
 from DSMachine.trainer.utils.tensorboard import Logger
 
 
+"""
+TODO REFACTOR
+"""
+
+class Trainer(object):
+
+    def __init__(self, model, data_transformer, checkpoint_path):
+        self.model_manager = ModelManager()
+        self.logger = Logger('./logs')
+        self.model = model
+        self.data_transformer = data_transformer
+        self.checkpoint_path = checkpoint_path
+
+    def tensorboard_logging(self, info, step):
+        for tag, value in info.items():
+            self.logger.scalar_summary(tag, value, step)
+
+    def load_pretrained_model(self, checkpoint_path=None):
+        if checkpoint_path is None:
+            self.model_manager.load_model(self.model, self.checkpoint_path)
+        else:
+            self.model_manager.load_model(self.model, checkpoint_path)
+
 class QATrainer(object):
 
-    def __init__(self, data_transformer, model, use_cuda=True, checkpoint_path='checkpoint/CNNQA.pt'):
+    def __init__(self, data_transformer, model, checkpoint_path='checkpoint/CNNQA.pt'):
         self.data_transformer = data_transformer
         self.model = model
         self.model_manager = ModelManager(path=checkpoint_path)
@@ -26,7 +51,7 @@ class QATrainer(object):
 
         for i in range(epochs):
             epoch_loss = 0
-            for(inputs, targets) in self.data_transformer.negative_batch(batch_size, positive_sample_size, negative_sample_size):
+            for (inputs, targets) in self.data_transformer.negative_batch(batch_size, positive_sample_size, negative_sample_size):
                 query_var, answer_var = inputs
                 logits, batch_loss = self._train_batch(query_var, answer_var, targets)
                 epoch_loss += batch_loss.data[0]
@@ -43,7 +68,7 @@ class QATrainer(object):
                 info = {
                     'batch_loss': batch_loss.data[0]
                 }
-                self.tensorboar_logging(info, step)
+                self.tensorboard_logging(info, step)
 
 
             print("Epoch %d total loss: %.5f" % (i, epoch_loss))
@@ -57,14 +82,6 @@ class QATrainer(object):
         self.optimizer.step()
 
         return logits, batch_loss
-
-    def tensorboar_logging(self, info, step):
-        for tag, value in info.items():
-            self.logger.scalar_summary(tag, value, step)
-
-    def load_pretrained_model(self, model_path):
-        self.model_manager.load_model(self.model, model_path)
-
 
 class SimTrainer(object):
 
@@ -119,12 +136,51 @@ class SimTrainer(object):
         batch_loss = self.cosine_sim_loss(pos_sim, neg_sim)
         batch_loss.backward()
         self.optimizer.step()
-
         return batch_loss
 
-    def tensorboar_logging(self, info, step):
-        for tag, value in info.items():
-            self.logger.scalar_summary(tag, value, step)
+class ClassifierTrainer(Trainer):
 
-    def load_pretrained_model(self, model_path):
-        self.model_manager.load_model(self.model, model_path)
+    def __init__(self, data_transformer, model, checkpoint_path='checkpoint/SentimentClassifier.pt'):
+        super(ClassifierTrainer, self).__init__(model, data_transformer, checkpoint_path)
+        self.model = model
+        self.optimizer = torch.optim.Adam(self.model.parameters())
+        self.criterion = nn.NLLLoss()
+        self.acc_calculator = BinaryAccuracyCalculator()
+        self.logger = Logger('./logs')
+
+        # for logging, would be replaced after connecting to tensorboard
+        self.verbose_round = 2000
+        self.save_round = 20000
+
+    def train(self, epochs, batch_size=128):
+        step = 0
+
+        for i in range(epochs):
+            epoch_loss = 0
+            for sentences_var, targets_var in self.data_transformer.mini_batches(batch_size):
+                batch_loss, accuracy = self._train_batch(sentences_var, targets_var)
+                epoch_loss += batch_loss.data[0]
+                if (step + 1) % self.verbose_round == 0:
+                    print("Epoch %d batch %d: Batch Loss:%.5f\t Accuracy:%.5f"
+                          % (i + 1, step + 1, batch_loss.data[0], accuracy))
+
+                if (step + 1) % self.save_round == 0:
+                    print(step, "Saving model")
+                    self.model_manager.save_model(self.model, path=self.checkpoint_path)
+                step += 1
+
+                info = {
+                    'batch_loss': batch_loss.data[0]
+                }
+                self.tensorboard_logging(info, step)
+            print("Epoch %d total loss: %.5f" % (i, epoch_loss))
+
+    def _train_batch(self, sentences_var, targets_var):
+        # back-prop & optimize
+        self.optimizer.zero_grad()
+        logits = self.model.forward(sentences_var)
+        batch_loss = self.criterion(logits, targets_var)
+        accuracy = self.acc_calculator.get_accuracy(logits, targets_var)
+        batch_loss.backward()
+        self.optimizer.step()
+        return batch_loss, accuracy

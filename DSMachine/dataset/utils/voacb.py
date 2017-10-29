@@ -1,10 +1,13 @@
+import jieba
+
 class Vocabulary(object):
 
-    def __init__(self):
+    def __init__(self, char_based=True):
         self.word2idx = {'SOS': 0, 'EOS': 1, 'PAD': 2, 'UNK': 3}
         self.idx2word = {0: 'SOS', 1: 'EOS', 2: 'PAD', 3: 'UNK'}
         self.num_words = 4
         self.max_length = 0
+        self.char_based = char_based
 
     def build_vocab(self, sentences):
         for sentence in sentences:
@@ -55,7 +58,10 @@ class Vocabulary(object):
         return sequence
 
     def split_sequence(self, sequence):
-        return [word for word in sequence]
+        if self.char_based:
+            return [word for word in sequence]
+        else:
+            return [word for word in jieba.cut(sequence, cut_all=True)]
 
     def replace_with(self, vocab):
         pass

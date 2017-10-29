@@ -1,10 +1,72 @@
 import random
 import torch
+import numpy as np
 
 from torch.autograd import Variable
 
 from DSMachine.dataset.utils.voacb import QAVocabulary
+from DSMachine.dataset.utils.dataloader import DataLoader
 from DSMachine.dataset.utils.sample import QASampler
+
+class SentimentDataTransformer(object):
+
+    def __init__(self, dataset_path, emote_meta_path, use_cuda, char_based):
+        self.use_cuda = use_cuda
+
+        self.data_loader = DataLoader(char_based=char_based)
+        self.data_loader.load_data(dataset_path=dataset_path)
+        self.PAD_ID = self.data_loader.vocab.word2idx["PAD"]
+        self.sentences = []
+        self.tags = []
+
+        self.emote_meta = {}
+        self._load_emote_meta(emote_meta_path)
+        self._build_training_set()
+        self.vocab_size = self.data_loader.vocab.num_words
+
+    def _build_training_set(self):
+        for data in self.data_loader.data:
+            tag, sentence = data.split(' ')
+            sequences = self.data_loader.vocab.sequence_to_indices(sentence)
+            self.sentences.append(sequences)
+            self.tags.append(self.emote_meta[tag])
+            #print(sequences, self.emote_meta[tag])
+
+    def _load_emote_meta(self, emote_meta_path):
+        res = DataLoader(char_based=False, dataset_path=emote_meta_path)
+        for data in res.data:
+            emote, id = data.split(' ')
+            self.emote_meta[emote] = int(id)
+
+    def mini_batches(self, batch_size):
+
+        training_data = list(zip(self.sentences, self.tags))
+        random.shuffle(training_data)
+        sentences, tags = zip(*training_data)
+
+        mini_batches = [
+            (sentences[k:k+batch_size], tags[k:k+batch_size])
+            for k in range(0, len(sentences), batch_size)
+        ]
+
+        for sentences, tags in mini_batches:
+            input_seqs = sorted(sentences, key=lambda s: len(s), reverse=True)
+            input_lengths = [len(s) for s in input_seqs]
+            in_max = max(input_lengths)
+            input_padded = [self.pad_sequence(s, in_max) for s in input_seqs]
+            input_var = Variable(torch.LongTensor(input_padded)).transpose(0, 1)
+            output_var = Variable(torch.LongTensor(tags))
+
+            if self.use_cuda:
+                input_var = input_var.cuda()
+                output_var = output_var.cuda()
+
+            yield (input_var, input_lengths), output_var
+
+    def pad_sequence(self, sequence, max_length):
+        sequence = [word for word in sequence]
+        sequence += [self.PAD_ID for i in range(max_length - len(sequence))]
+        return sequence
 
 
 class DataTransformer(object):

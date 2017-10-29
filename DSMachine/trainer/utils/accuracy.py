@@ -26,3 +26,9 @@ class BinaryAccuracyCalculator(object):
             neg_accuracy = 1 - (neg_false_prediction / neg_size)
 
             return accuracy, pos_accuracy, neg_accuracy
+
+    def get_accuracy(self, logits, targets):
+        predict_classes = logits.max(dim=1)[1]
+        corrections = torch.eq(predict_classes, targets)
+        accuracy =  torch.sum(corrections).data[0]/ corrections.size(0)
+        return accuracy
