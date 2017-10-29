@@ -8,4 +8,4 @@ logs/
 *.pt
 *.model
 __pycache__/
-
+./*py
