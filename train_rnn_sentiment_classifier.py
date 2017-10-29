@@ -11,7 +11,7 @@ def main():
     classifier = RNNSentimentClassifier(embedding_size=data_transformer.vocab_size, hidden_size=512, output_size=4, layers=2)
     classifier = classifier.cuda()
     trainer = ClassifierTrainer(data_transformer ,classifier)
-    trainer.train(epochs=20, batch_size=128)
+    trainer.train(epochs=3000, batch_size=128, pretrained=True)
 
 if __name__ == '__main__':
     main()

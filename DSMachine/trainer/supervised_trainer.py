@@ -143,7 +143,7 @@ class ClassifierTrainer(Trainer):
     def __init__(self, data_transformer, model, checkpoint_path='checkpoint/SentimentClassifier.pt'):
         super(ClassifierTrainer, self).__init__(model, data_transformer, checkpoint_path)
         self.model = model
-        self.optimizer = torch.optim.Adam(self.model.parameters())
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=1e-4)
         self.criterion = nn.NLLLoss()
         self.acc_calculator = BinaryAccuracyCalculator()
         self.logger = Logger('./logs')
@@ -152,8 +152,11 @@ class ClassifierTrainer(Trainer):
         self.verbose_round = 2000
         self.save_round = 20000
 
-    def train(self, epochs, batch_size=128):
+    def train(self, epochs, batch_size=128, pretrained=False):
         step = 0
+
+        if pretrained:
+            self.model_manager.load_model(self.model, self.checkpoint_path)
 
         for i in range(epochs):
             epoch_loss = 0
@@ -184,3 +187,57 @@ class ClassifierTrainer(Trainer):
         batch_loss.backward()
         self.optimizer.step()
         return batch_loss, accuracy
+
+class GreedyHANTrainer(Trainer):
+
+    def __init__(self, data_transformer, model, checkpoint_path='checkpoint/HANClassifier.pt'):
+        super(GreedyHANTrainer, self).__init__(model, data_transformer, checkpoint_path)
+        self.model = model
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=1e-4)
+        self.criterion = nn.NLLLoss()
+        self.acc_calculator = BinaryAccuracyCalculator()
+        self.logger = Logger('./logs/greedy')
+
+        # for logging, would be replaced after connecting to tensorboard
+        self.verbose_round = 2000
+        self.save_round = 20000
+
+    def train(self, epochs, batch_size=128, pretrained=False):
+        step = 0
+
+        if pretrained:
+            self.model_manager.load_model(self.model, self.checkpoint_path)
+
+        for i in range(epochs):
+            epoch_loss = 0
+            for sentences_var, targets_var in self.data_transformer.mixed_batches(batch_size, mixed_data=True):
+                batch_loss, accuracy_pn, accuracy_all = self._train_batch(sentences_var, targets_var)
+                epoch_loss += batch_loss.data[0]
+                if (step + 1) % self.verbose_round == 0:
+                    print("Epoch %d batch %d: Batch Loss:%.5f\t AccuracyPN:%.5f\tAccuracyALL:%.5f"
+                          % (i + 1, step + 1, batch_loss.data[0], accuracy_pn, accuracy_all))
+
+                if (step + 1) % self.save_round == 0:
+                    print(step, "Saving model")
+                    self.model_manager.save_model(self.model, path=self.checkpoint_path)
+                step += 1
+
+                info = {
+                    'batch_loss': batch_loss.data[0]
+                }
+                self.tensorboard_logging(info, step)
+            print("Epoch %d total loss: %.5f" % (i, epoch_loss))
+
+    def _train_batch(self, sentences_var, targets_var):
+        # back-prop & optimize
+        self.optimizer.zero_grad()
+        pn_targets, all_targets = targets_var
+        pn_logits, all_logits = self.model.forward(sentences_var)
+        pn_batch_loss = self.criterion(pn_logits, pn_targets)
+        all_batch_loss = self.criterion(all_logits, all_targets)
+        accuracy_pn = self.acc_calculator.get_accuracy(pn_logits, pn_targets)
+        accuracy_all = self.acc_calculator.get_accuracy(all_logits, all_targets)
+        batch_loss = pn_batch_loss + all_batch_loss
+        batch_loss.backward()
+        self.optimizer.step()
+        return batch_loss, accuracy_pn, accuracy_all

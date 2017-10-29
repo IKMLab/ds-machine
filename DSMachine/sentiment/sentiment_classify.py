@@ -51,6 +51,34 @@ class CNNSentimentClassifier(nn.Module):
         out = self.out_gate(self.out(h1))
         return out
 
+class GreedyHAN(nn.Module):
+
+    def __init__(self, vocab_size, embedding_size, hidden_size, output_size, kernel_sizes, kernel_num):
+        super(GreedyHAN, self).__init__()
+        self.pos_neg_encoder = ConvEncoder.KMaxConvolutionEncoder(vocab_size, embedding_size, kernel_sizes, kernel_num)
+        self.neg_encoder = ConvEncoder.KMaxConvolutionEncoder(vocab_size, embedding_size, kernel_sizes, kernel_num)
+        flatten_size = len(kernel_sizes) * kernel_num * 3
+        self.h1 = nn.Linear(flatten_size, hidden_size)
+        self.pos_neg_out = nn.Linear(hidden_size, 2)
+
+        self.h2 = nn.Linear(flatten_size, hidden_size)
+        self.out = nn.Linear(hidden_size, output_size)
+        self.out_gate = nn.LogSoftmax()
+
+    def forward(self, inputs, mean_on_time=False):
+        inputs_var, _ = inputs
+        inputs_var = inputs_var.transpose(0, 1)
+
+        context = self.pos_neg_encoder.forward(inputs_var)
+
+        # check is pos or neg
+        h1 = self.h1(context)
+        pos_or_neg = self.out_gate(self.pos_neg_out(h1))
+
+        h2 = self.h2(context)
+        out = self.out_gate(self.out(h2))
+        return pos_or_neg, out
+
 class SentimentAttentionClassifier(nn.Module):
     # TODO
     pass
