@@ -45,7 +45,7 @@ class SentimentDataTransformer(object):
         sentences, tags = zip(*training_data)
 
         mini_batches = [
-            (sentences[k:k + batch_size], tags[k:k + batch_size])
+            (sentences[k:k+batch_size], tags[k:k+batch_size])
             for k in range(0, len(sentences), batch_size)
         ]
 
@@ -63,44 +63,53 @@ class SentimentDataTransformer(object):
 
             yield (input_var, input_lengths), output_var
 
-
-    def neg_or_pos(self, tags):
-        pn = [0 if v >= 1 else 1 for v in tags]
-        return (pn ,tags)
-
-    def mixed_batches(self, batch_size, mixed_data=False):
+    def multi_mini_batches(self, batch_size):
 
         training_data = list(zip(self.sentences, self.tags))
         random.shuffle(training_data)
-        sentences, tags = zip(*training_data)
+        input_seqs = sorted(training_data, key=lambda s: len(s[0]), reverse=True)
+        sentences, tags = zip(*input_seqs)
+        input_lengths = [len(s) for s in sentences]
+        
+        temp, result = [input_seqs[0]], []
+        for i in range(1, len(input_seqs)):
+            if input_lengths[i] == input_lengths[i-1]:
+                temp.append(input_seqs[i])
+            else:
+                result.append(temp)
+                temp = [input_seqs[i]]
+        result.append(temp)
 
-        if mixed_data:
-            mini_batches = [
-                (sentences[k: k + batch_size], self.neg_or_pos(tags[k: k +batch_size]))
-                for k in range(0, len(sentences), batch_size)
-            ]
-        else:
-            mini_batches = [
-                (sentences[k: k + batch_size], tags[k: k + batch_size])
-                for k in range(0, len(sentences), batch_size)
-            ]
+        for cand_batch in result:
+            if len(cand_batch) < batch_size:
+                sentence, tag = zip(*cand_batch)
+                input_var = Variable(torch.LongTensor(list(sentence))).transpose(0, 1)
+                output_var = Variable(torch.LongTensor(list(tag)))
 
-        for sentences, tags in mini_batches:
-            input_seqs = sorted(sentences, key=lambda s: len(s), reverse=True)
-            input_lengths = [len(s) for s in input_seqs]
-            in_max = max(input_lengths)
-            input_padded = [self.pad_sequence(s, in_max) for s in input_seqs]
-            input_var = Variable(torch.LongTensor(input_padded)).transpose(0, 1)
-            pn, all = tags
-            output_pn_var = Variable(torch.LongTensor(pn))
-            output_tag_var = Variable(torch.LongTensor(all))
+                if self.use_cuda:
+                    input_var = input_var.cuda()
+                    output_var = output_var.cuda()
 
-            if self.use_cuda:
-                input_var = input_var.cuda()
-                output_pn_var = output_pn_var.cuda()
-                output_tag_var = output_tag_var.cuda()
+                yield input_var, output_var
 
-            yield (input_var, input_lengths), (output_pn_var, output_tag_var)
+            else:
+                num_batch = int(len(cand_batch) / batch_size)
+                cand_batch = cand_batch[: num_batch * batch_size]
+                mini_batches = [
+                    cand_batch[k: k + batch_size]
+                    for k in range(0, len(cand_batch), batch_size)
+                ]
+                for batch in mini_batches:
+                    sentence, tag = zip(*batch)
+                    input_var = Variable(torch.LongTensor(list(sentence))).transpose(0, 1)
+                    output_var = Variable(torch.LongTensor(list(tag)))
+
+                    if self.use_cuda:
+                        input_var = input_var.cuda()
+                        output_var = output_var.cuda()
+
+                    yield (input_var, len(sentence[0])), output_var
+
 
     def pad_sequence(self, sequence, max_length):
         sequence = [word for word in sequence]
