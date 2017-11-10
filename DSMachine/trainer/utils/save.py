@@ -13,4 +13,5 @@ class ModelManager(object):
     def load_model(self, model, path=None):
         path = self.path if path is None else path
         model.load_state_dict(torch.load(path))
-        print("A pre-trained model has been loaded.\n")
+        model.eval()
+        print("A pre-trained model at %s has been loaded.\n" % path)

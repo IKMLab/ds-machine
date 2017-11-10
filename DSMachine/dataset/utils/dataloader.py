@@ -11,12 +11,13 @@ class DataLoader(object):
         if dataset_path is not None:
             self.load_data(dataset_path)
 
-    def load_data(self, dataset_path):
+    def load_data(self, dataset_path, max_length=35):
         self.log.info("[Data loader]: Loading the dataset at {}.".format(dataset_path))
         with open(dataset_path, 'r', encoding='utf-8') as dataset:
             for line in dataset:
                 line = line.strip('\n')
-                self._data.append(line)
+                if len(line) < max_length:
+                    self._data.append(line)
         self.log.info("[Data loader]: the dataset has been loaded.")
         self._build_vocab()
 

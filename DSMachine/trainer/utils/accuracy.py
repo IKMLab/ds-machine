@@ -1,5 +1,5 @@
 import torch
-
+import numpy as np
 
 class BinaryAccuracyCalculator(object):
 
@@ -27,8 +27,19 @@ class BinaryAccuracyCalculator(object):
 
             return accuracy, pos_accuracy, neg_accuracy
 
-    def get_accuracy(self, logits, targets):
-        predict_classes = logits.max(dim=1)[1]
-        corrections = torch.eq(predict_classes, targets)
-        accuracy =  torch.sum(corrections).data[0]/ corrections.size(0)
-        return accuracy
+    def get_accuracy(self, logits, targets, sigmoid=False):
+
+
+        if sigmoid:
+            # [512, 1]
+            logits = torch.round(logits)
+
+            res = torch.eq(logits.view(-1).data, targets.view(-1).data)
+            res = torch.sum(res)
+
+            return res / targets.size(0)
+        else:
+            predict_classes = logits.max(dim=1)[1]
+            corrections = torch.eq(predict_classes.view(-1).data, targets.view(-1).data)
+            accuracy = torch.sum(corrections) / corrections.size(0)
+            return accuracy

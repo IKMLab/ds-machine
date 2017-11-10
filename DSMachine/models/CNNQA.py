@@ -47,6 +47,7 @@ class ConvolutionDiscriminator(nn.Module):
                 flatten_size = len(kernel_sizes) * kernel_num
 
         self.fc = nn.Linear(flatten_size, hidden_size)  # maybe this layer should be removed before adding topk pooling
+        self.fc_norm = nn.BatchNorm1d(hidden_size)
         self.out = nn.Linear(hidden_size, out_size)  # binary classification
         self.log_softmax = nn.LogSoftmax()
 
@@ -76,7 +77,7 @@ class ConvolutionDiscriminator(nn.Module):
             else:
                 qa_features = qa_correlation
 
-        h1 = self.fc(qa_features)
+        h1 = self.fc_norm(self.fc(qa_features))
         logits = self.log_softmax(self.out(h1))
         return logits
 

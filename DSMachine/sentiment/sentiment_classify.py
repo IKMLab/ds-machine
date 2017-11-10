@@ -1,16 +1,20 @@
+import math
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from DSMachine.models.encoders import RNNEncoder, ConvEncoder
 from DSMachine.configs import sentiment_config
+from torch.nn.init import xavier_normal
 
 class RNNSentimentClassifier(nn.Module):
 
-    def __init__(self, embedding_size, hidden_size, output_size, layers):
+    def __init__(self, vocab_size, hidden_size, output_size, layers):
         super(RNNSentimentClassifier, self).__init__()
-        self.embedding = nn.Embedding(embedding_size, hidden_size)
+        self.embedding = nn.Embedding(vocab_size, hidden_size)
         self.encoder = RNNEncoder.RNNEncoder(
             hidden_size=hidden_size,
+            embedding_size=hidden_size,
             rnn_cell=sentiment_config.rnn_cell,
             bidirectional=sentiment_config.bidirectional,
             batch_first=sentiment_config.batch_first,
@@ -18,11 +22,9 @@ class RNNSentimentClassifier(nn.Module):
             num_layers=layers,
             dropout=sentiment_config.dropout
         )
-
         self.out = nn.Linear(hidden_size, output_size)
-        self.out_gate = nn.LogSoftmax()
 
-    def forward(self, inputs, mean_on_time=False):
+    def forward(self, inputs, mean_on_time=True):
         input_vars, input_lengths = inputs
         output, hidden = self.encoder.forward(input_vars, input_lengths)
 
@@ -30,55 +32,74 @@ class RNNSentimentClassifier(nn.Module):
             output = torch.mean(output, dim=0)
         else:
             output = output[-1].squeeze(0) # squeeze the time dimension
-        out = self.out_gate(self.out(output))
+        out = F.softmax(self.out(output))
+        return out
+
+class AttentionSentimentClassifier(nn.Module):
+
+    def __init__(self, embedding_size, hidden_size, output_size, layers):
+        super(AttentionSentimentClassifier, self).__init__()
+        self.embedding = nn.Embedding(embedding_size, hidden_size)
+        self.encoder = RNNEncoder.RNNEncoder(
+            hidden_size=hidden_size,
+            rnn_cell=sentiment_config.rnn_cell,
+            bidirectional=sentiment_config.bidirectional,
+            batch_first=sentiment_config.batch_first,
+            embedding=self.embedding,
+            embedding_size = embedding_size,
+            num_layers=layers,
+            dropout=sentiment_config.dropout
+        )
+
+        self.out = nn.Linear(hidden_size, output_size)
+
+    def forward(self, inputs, mean_on_time=True):
+        input_vars, input_lengths = inputs
+        output, hidden = self.encoder.forward(input_vars, input_lengths)
+
+        if mean_on_time:
+            output = torch.mean(output, dim=0)
+        else:
+            output = output[-1].squeeze(0) # squeeze the time dimension
+        out = F.softmax(self.out(output))
         return out
 
 class CNNSentimentClassifier(nn.Module):
 
     def __init__(self, vocab_size, embedding_size, hidden_size, output_size, kernel_sizes, kernel_num):
         super(CNNSentimentClassifier, self).__init__()
-        self.conv_encoder = ConvEncoder.ConvolutionEncoder(vocab_size, embedding_size, kernel_sizes, kernel_num)
+        self.convolution_encoder = ConvEncoder.ConvolutionEncoder(vocab_size, embedding_size, kernel_sizes, kernel_num, batch_norm_out=True)
         flatten_size = len(kernel_sizes) * kernel_num
         self.fc = nn.Linear(flatten_size, hidden_size)
         self.out = nn.Linear(hidden_size, output_size)
-        self.out_gate = nn.LogSoftmax()
+
+    def _weights_init(self, torch_module):
+        xavier_normal(torch_module.weight.data, gain=math.sqrt(2.0))
 
     def forward(self, inputs, mean_on_time=False):
         inputs_var, _ = inputs
         inputs_var = inputs_var.transpose(0, 1)
-        context = self.conv_encoder.forward(inputs_var)
-        h1 = self.fc(context)
-        out = self.out_gate(self.out(h1))
+        context = self.convolution_encoder(inputs_var)
+        h1 = F.relu(self.fc(context))
+        out = F.softmax(self.out(h1))
         return out
 
-class GreedyHAN(nn.Module):
+class SigmoidSentimentClassifier(nn.Module):
 
-    def __init__(self, vocab_size, embedding_size, hidden_size, output_size, kernel_sizes, kernel_num):
-        super(GreedyHAN, self).__init__()
-        self.pos_neg_encoder = ConvEncoder.KMaxConvolutionEncoder(vocab_size, embedding_size, kernel_sizes, kernel_num)
-        self.neg_encoder = ConvEncoder.KMaxConvolutionEncoder(vocab_size, embedding_size, kernel_sizes, kernel_num)
-        flatten_size = len(kernel_sizes) * kernel_num * 3
-        self.h1 = nn.Linear(flatten_size, hidden_size)
-        self.pos_neg_out = nn.Linear(hidden_size, 2)
+    def __init__(self, vocab_size, embedding_size, hidden_size, kernel_sizes, kernel_num):
+        super(SigmoidSentimentClassifier, self).__init__()
+        self.convolution_encoder = ConvEncoder.ConvolutionEncoder(vocab_size, embedding_size, kernel_sizes, kernel_num, batch_norm_out=True)
+        flatten_size = len(kernel_sizes) * kernel_num
+        self.fc = nn.Linear(flatten_size, hidden_size)
+        self.out = nn.Linear(hidden_size, 1)
 
-        self.h2 = nn.Linear(flatten_size, hidden_size)
-        self.out = nn.Linear(hidden_size, output_size)
-        self.out_gate = nn.LogSoftmax()
+    def _weights_init(self, torch_module):
+        xavier_normal(torch_module.weight.data, gain=math.sqrt(2.0))
 
     def forward(self, inputs, mean_on_time=False):
         inputs_var, _ = inputs
         inputs_var = inputs_var.transpose(0, 1)
-
-        context = self.pos_neg_encoder.forward(inputs_var)
-
-        # check is pos or neg
-        h1 = self.h1(context)
-        pos_or_neg = self.out_gate(self.pos_neg_out(h1))
-
-        h2 = self.h2(context)
-        out = self.out_gate(self.out(h2))
-        return pos_or_neg, out
-
-class SentimentAttentionClassifier(nn.Module):
-    # TODO
-    pass
+        context = self.convolution_encoder(inputs_var)
+        h1 = F.relu(self.fc(context))
+        out = F.sigmoid(self.out(h1))
+        return out

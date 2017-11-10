@@ -1,15 +1,15 @@
 from DSMachine.dataset.data_helper import DataTransformer
 from DSMachine.models.CNNQA import ConvolutionDiscriminator
-from DSMachine.trainer.supervised_trainer import QATrainer
+from DSMachine.trainer.qa_trainer import QATrainer
 
 
 def main():
     # TODO store all configs in a file
     print("Loading the dataset...")
-    data_transformer = DataTransformer(path='dataset/Gossiping-QA-Dataset.txt', min_length=6)
+    data_transformer = DataTransformer(path='dataset/Gossiping/Gossiping-QA-Dataset.txt', min_length=6)
     qa_discriminator = ConvolutionDiscriminator(vocab_size=data_transformer.vocab_size,
-                                                embedding_size=200, kernel_sizes=(2, 3, 4), kernel_num=72,
-                                                hidden_size=256, out_size=2, conv_over_qa=False, residual=True).cuda()
+                                                embedding_size=512, kernel_sizes=(1, 2, 3,), kernel_num=72,
+                                                hidden_size=512, out_size=2, conv_over_qa=False, residual=True).cuda()
     trainer = QATrainer(data_transformer, model=qa_discriminator, checkpoint_path='checkpoint/CNNQA_WITH_RESIDUAL_POS_55.pt')
     print("Training the CNN-QA-Discriminator")
     #trainer.load_pretrained_model(model_path='checkpoint/CNNQA_WITH_RESIDUAL.pt')

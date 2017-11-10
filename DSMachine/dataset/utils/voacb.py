@@ -13,6 +13,19 @@ class Vocabulary(object):
         for sentence in sentences:
             self.sentence_processing(sentence)
 
+    def load_vocab(self, path):
+        with open(path, 'r', encoding='utf-8') as data:
+            for line in data:
+                word, idx = line.strip('\n').split(',')
+                self.word2idx[word] = idx
+                self.idx2word[id] = word
+            self.num_words = len(self.word2idx)
+
+    def dump_vocab(self, path):
+        with open(path, 'w', encoding='utf-8') as out:
+            for word, idx in self.word2idx.items():
+                out.write(word + ',' + idx + '\n')
+
     def sentence_processing(self, sentence):
         """Build the vocabulary based on input sentence"""
         if self.max_length < len(sentence):
