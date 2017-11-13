@@ -12,11 +12,12 @@ class ConvolutionEncoder(nn.Module):
     Encode a sequence of words into a vector
     """
 
-    def __init__(self, vocab_size, embedding_size, kernel_sizes, kernel_num, batch_norm_out=True):
+    def __init__(self, vocab_size, embedding_size, kernel_sizes, kernel_num, batch_norm_out=True, leaky_RELU=False):
         super(ConvolutionEncoder, self).__init__()
 
         self.embedding = nn.Embedding(vocab_size, embedding_size)
-        #self._weights_init(self.embedding)  # xavier norm, TODO: change to a pre-trained word embedding
+        self._weights_init(self.embedding)  # xavier norm, TODO: change to a pre-trained word embedding
+        self.leaky_RELU = leaky_RELU
 
         self.convs = nn.ModuleList([nn.Conv2d(1, kernel_num, (ks, embedding_size)) for ks in kernel_sizes])
         out_size = kernel_num * len(kernel_sizes)
@@ -40,7 +41,12 @@ class ConvolutionEncoder(nn.Module):
         inputs_embedded = self.embedding(inputs)  # (N, T, D)
         inputs_embedded = inputs_embedded.unsqueeze(1)  # (N, 1, T, D)
 
-        inputs_conv = [F.relu(conv(inputs_embedded)).squeeze(3) for conv in self.convs]  # [(N, K_num, W), ...]
+        if self.leaky_RELU:
+            activation_function = F.relu
+        else:
+            activation_function = F.leaky_relu
+
+        inputs_conv = [activation_function(conv(inputs_embedded)).squeeze(3) for conv in self.convs]  # [(N, K_num, W), ...]
         inputs_maxed = [F.max_pool1d(i, i.size(2)).squeeze(2) for i in inputs_conv]  # [(N, K_num), ...]
         out = torch.cat(inputs_maxed, 1)
 

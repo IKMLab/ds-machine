@@ -372,6 +372,9 @@ class DataTransformer(object):
         self.answer_sequences = []
         self.use_cuda = use_cuda
 
+        self.symbols = set()
+        self.stopwords = set()
+
         # Load and build the vocab
         self.vocab = QAVocabulary()
         self.vocab.build_vocab_from_dataset(path, min_length)
@@ -396,11 +399,29 @@ class DataTransformer(object):
             sequence.reverse()
         return sequence
 
+    def _load_symbols_and_stopwords(self, dir='dataset/Symbols/'):
+        with open(dir + 'symbol.txt', 'r', encoding='utf-8') as data:
+            for line in data:
+                line = line.strip('\n')
+                self.symbols.add(line)
+
+        with open(dir + 'stop_words', 'r', encoding='utf-8') as data:
+            for line in data:
+                line = line.strip('\n')
+                self.stopwords.add(line)
+
+    def clean_sentence(self, sentence):
+        cleaned = ''
+        for word in jieba.cut(sentence, cut_all=True):
+            if word not in self.symbols and word not in self.stopwords:
+                cleaned += word
+        return cleaned
+
     def batches(self, batch_size):
         pass
         # TODO
 
-    def negative_batch(self, batch_size, positive_size, negative_size):
+    def negative_batch(self, batch_size, negative_size):
         # oversample the pos answer, undersample the neg answer
         # a batch is composed of #batch_size * negative_size pos answer and #batch_size * #nagative_size neg answers
         # TODO: modified to weighted loss(pyTorch)
@@ -422,9 +443,6 @@ class DataTransformer(object):
 
         for i in range(len(pos_mini_batches)):
             query_pos_batch, answer_pos_batch = pos_mini_batches[i]
-            query_pos_batch = query_pos_batch * positive_size
-            answer_pos_batch = answer_pos_batch * positive_size
-
             query_neg_batch, answer_neg_batch = neg_mini_batches[i]
             pos_targets = [1] * len(query_pos_batch)
             neg_targets = [0] * len(query_neg_batch)
@@ -498,14 +516,16 @@ class DataTransformer(object):
 
     def evaluation_batch(self, query):
 
-        eval_batch_size = 8192
+        raw_query = query
+
+        eval_batch_size = 16384
         mini_batches = [
             self.answer_sequences[k: k + eval_batch_size]
             for k in range(0, len(self.answer_sequences), eval_batch_size)
         ]
 
         for answer_batch in mini_batches:
-
+            query = self.clean_sentence(raw_query)
             query = self.vocab.sequence_to_indices(query)  # encode raw sentence to index seq
             query_batch = [query for _ in range(len(answer_batch))]
 

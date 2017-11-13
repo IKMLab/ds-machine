@@ -1,6 +1,4 @@
-import random
 import torch
-import jieba
 import torch.nn as nn
 from DSMachine.trainer.utils.accuracy import BinaryAccuracyCalculator
 from DSMachine.trainer.utils.save import ModelManager
@@ -13,26 +11,26 @@ class QATrainer(object):
         self.data_transformer = data_transformer
         self.model = model
         self.model_manager = ModelManager(path=checkpoint_path)
-        self.criterion = nn.NLLLoss(size_average=True)
+        self.criterion = nn.NLLLoss(size_average=True, weight=torch.Tensor([1, 500]).cuda())
         self.optimizer = torch.optim.Adam(self.model.parameters())
         self.acc_calculator = BinaryAccuracyCalculator()
         self.logger = Logger('./logs')
 
         # for logging, would be replaced after connecting to tensorboard
-        self.verbose_round = 1000
-        self.save_round = 50000
+        self.verbose_round = 500
+        self.save_round = 20000
 
-    def train(self, epochs, batch_size=20, positive_sample_size=50, negative_sample_size=50):
+    def train(self, epochs, batch_size=20, negative_sample_size=500):
         step = 0
 
         for i in range(epochs):
             epoch_loss = 0
-            for (inputs, targets) in self.data_transformer.negative_batch(batch_size, positive_sample_size, negative_sample_size):
+            for (inputs, targets) in self.data_transformer.negative_batch(batch_size, negative_sample_size):
                 query_var, answer_var = inputs
                 logits, batch_loss = self._train_batch(query_var, answer_var, targets)
                 epoch_loss += batch_loss.data[0]
                 if (step + 1) % self.verbose_round == 0:
-                    acc, pos_acc, neg_acc = self.acc_calculator.get_accuracy_torch(logits, targets, 0.375)
+                    acc, pos_acc, neg_acc = self.acc_calculator.get_accuracy_torch(logits, targets, 0.005)
                     print("Epoch %d batch %d: Batch Loss:%.5f\tAcc:%.5f\tPos:%.5f\tNeg:%.5f"
                           % (i + 1, step + 1, batch_loss.data[0], acc, pos_acc, neg_acc))
 
@@ -44,10 +42,13 @@ class QATrainer(object):
                 info = {
                     'batch_loss': batch_loss.data[0]
                 }
-                #self.tensorboard_logging(info, step)
-
+                self.tensorboard_logging(info, step)
 
             print("Epoch %d total loss: %.5f" % (i, epoch_loss))
+
+    def tensorboard_logging(self, info, step):
+        for tag, value in info.items():
+            self.logger.scalar_summary(tag, value, step)
 
     def _train_batch(self, query_var, answer_var, target_var):
         # back-prop & optimize
@@ -58,6 +59,9 @@ class QATrainer(object):
         self.optimizer.step()
 
         return logits, batch_loss
+
+    def load_pretrained_model(self, checkpoint_path=None):
+        self.model_manager.load_model(self.model, checkpoint_path)
 
 class SimTrainer(object):
 

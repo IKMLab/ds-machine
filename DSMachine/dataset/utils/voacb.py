@@ -101,11 +101,14 @@ class QAVocabulary(Vocabulary):
         self.query_list = []
         self.answer_list = []
 
-    def build_vocab_from_dataset(self, data_path, min_length):
+    def build_vocab_from_dataset(self, data_path, min_length, clean=None):
         """Construct the relation between words and indices"""
         with open(data_path, 'r', encoding='utf-8') as dataset:
             for sentence in dataset:
                 query, answer = sentence.strip('\n').split('\t')
+                if clean is not None:
+                    query = clean(query)
+                    answer = clean(answer)
 
                 if len(query) > min_length and len(answer) > min_length:
                     self.query_list.append(query)

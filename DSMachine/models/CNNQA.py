@@ -31,8 +31,8 @@ class ConvolutionDiscriminator(nn.Module):
     def __init__(self, vocab_size, embedding_size, kernel_sizes, kernel_num,
                  hidden_size, out_size, conv_over_qa=False, residual=False):
         super(ConvolutionDiscriminator, self).__init__()
-        self.query_encoder = ConvolutionEncoder(vocab_size, embedding_size, kernel_sizes, kernel_num)
-        self.answer_encoder = ConvolutionEncoder(vocab_size, embedding_size, kernel_sizes, kernel_num)
+        self.query_encoder = ConvolutionEncoder(vocab_size, embedding_size, kernel_sizes, kernel_num, leaky_RELU=True)
+        self.answer_encoder = ConvolutionEncoder(vocab_size, embedding_size, kernel_sizes, kernel_num, leaky_RELU=True)
         self.conv_over_qa = conv_over_qa
         self.residual = residual
 
